@@ -31,8 +31,19 @@ final class BrowserTabController: ObservableObject {
         refreshPermissionStatus()
 
         if !hasInputControlPermission {
-            statusText = "Allow PHNTM in Accessibility, then restart it once"
+            statusText = "Allow PHNTM in Accessibility, then return to the app"
+            openAccessibilitySettings()
         }
+    }
+
+    func openAccessibilitySettings() {
+        guard let url = URL(
+            string: "x-apple.systempreferences:com.apple.preference.security?Privacy_Accessibility"
+        ) else {
+            return
+        }
+
+        NSWorkspace.shared.open(url)
     }
 
     func setEnabled(_ enabled: Bool) {

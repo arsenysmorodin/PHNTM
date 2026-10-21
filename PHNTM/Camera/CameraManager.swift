@@ -2,6 +2,7 @@
 import Foundation
 import Combine
 import AVFoundation
+import AppKit
 import Vision
 
 @MainActor
@@ -19,6 +20,39 @@ final class CameraManager: NSObject,
 
     var hasCameraPermission: Bool {
         authorizationStatus == .authorized
+    }
+
+    func refreshAuthorizationStatus() {
+        authorizationStatus = AVCaptureDevice.authorizationStatus(for: .video)
+    }
+
+    func requestPermission() {
+        refreshAuthorizationStatus()
+
+        guard authorizationStatus == .notDetermined else {
+            if authorizationStatus != .authorized {
+                openPrivacySettings()
+            }
+            return
+        }
+
+        AVCaptureDevice.requestAccess(for: .video) { [weak self] granted in
+            self?.publishAuthorizationStatus()
+
+            if !granted {
+                self?.publishError("Camera access was denied.")
+            }
+        }
+    }
+
+    func openPrivacySettings() {
+        guard let url = URL(
+            string: "x-apple.systempreferences:com.apple.preference.security?Privacy_Camera"
+        ) else {
+            return
+        }
+
+        NSWorkspace.shared.open(url)
     }
 
     private let sessionQueue = DispatchQueue(

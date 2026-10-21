@@ -1,0 +1,11 @@
+# Xcode user state
+*.xcuserstate
+xcuserdata/
+
+# Local build and packaging output
+build/
+dist/
+DerivedData/
+
+# macOS metadata
+.DS_Store

@@ -5,14 +5,15 @@ struct ContentView: View {
 
     // MARK: - State
 
-    @EnvironmentObject private var appStatus: AppStatusStore
-    @StateObject private var camera = CameraManager()
-    @StateObject private var directionGesture = DirectionGestureEngine()
-    @StateObject private var browserTabs = BrowserTabController()
+    @EnvironmentObject private var appController: AppController
+    @AppStorage(AppStorageKeys.completedOnboarding)
+    private var completedOnboarding = false
 
-    @State private var isTracking = false
-    @AppStorage("browserControlEnabled")
-    private var browserControlEnabled = false
+    private var camera: CameraManager { appController.camera }
+    private var directionGesture: DirectionGestureEngine {
+        appController.directionGesture
+    }
+    private var browserTabs: BrowserTabController { appController.browserTabs }
 
     // MARK: - Computed Properties
 
@@ -53,6 +54,14 @@ struct ContentView: View {
                     .font(.system(size: 28, weight: .bold))
 
                 Spacer()
+
+                Button {
+                    completedOnboarding = false
+                } label: {
+                    Image(systemName: "questionmark.circle")
+                }
+                .buttonStyle(.plain)
+                .help("Open Setup Guide")
 
                 Circle()
                     .fill(
@@ -186,7 +195,7 @@ struct ContentView: View {
             HStack(spacing: 12) {
                 Toggle(
                     "Control Safari",
-                    isOn: $browserControlEnabled
+                    isOn: $appController.browserControlEnabled
                 )
 
                 Spacer()
@@ -204,7 +213,7 @@ struct ContentView: View {
 
             HStack {
                 Text(
-                    browserControlEnabled
+                    appController.browserControlEnabled
                         ? browserTabs.statusText
                         : "Safari control is off"
                 )
@@ -220,103 +229,39 @@ struct ContentView: View {
             // MARK: Camera Control
 
             Button(
-                isTracking
+                appController.isTracking
                     ? "Stop Camera"
                     : "Start Camera"
             ) {
-                toggleCamera()
+                appController.toggleCamera()
             }
             .buttonStyle(.borderedProminent)
         }
         .padding(24)
         .frame(width: 560)
 
-        // MARK: Frame Processing
-
-        .onReceive(camera.$hands) { hands in
-            guard isTracking else { return }
-
-            let isGuardPresent = hands.contains(
-                where: GestureClassifier.isOpenPalm
-            )
-            appStatus.updateGuardPalm(isGuardPresent)
-
-            let pointingHand = hands.first(
-                where: GestureClassifier.isPointing
-            ) ?? []
-
-            if let event = directionGesture.process(
-                landmarks: pointingHand,
-                isGuardPresent: isGuardPresent
+        .onAppear {
+            appController.refreshPermissions()
+        }
+        .sheet(isPresented: onboardingPresentation) {
+            OnboardingView(
+                camera: camera,
+                browserTabs: browserTabs
             ) {
-                print("PHNTM: \(event.rawValue)")
-                appStatus.reportGesture(event)
+                appController.completeOnboarding()
+                completedOnboarding = true
+            }
+        }
+    }
 
-                if browserControlEnabled {
-                    let didPerform = browserTabs.perform(event)
-                    syncAppStatusPermissions()
-
-                    if !didPerform,
-                       browserTabs.hasInputControlPermission {
-                        appStatus.reportTransientError(browserTabs.statusText)
-                    }
+    private var onboardingPresentation: Binding<Bool> {
+        Binding(
+            get: { !completedOnboarding },
+            set: { isPresented in
+                if !isPresented {
+                    completedOnboarding = true
                 }
             }
-        }
-        .onChange(of: browserControlEnabled) { _, enabled in
-            browserTabs.setEnabled(enabled)
-            syncAppStatusPermissions()
-        }
-        .onReceive(camera.$authorizationStatus) { _ in
-            syncAppStatusPermissions()
-        }
-        .onReceive(camera.$errorMessage) { message in
-            if let message {
-                appStatus.reportError(message)
-            } else {
-                appStatus.clearPersistentError()
-            }
-        }
-        .onReceive(
-            NotificationCenter.default.publisher(
-                for: NSApplication.didBecomeActiveNotification
-            )
-        ) { _ in
-            browserTabs.refreshPermissionStatus()
-            syncAppStatusPermissions()
-        }
-        .onAppear {
-            browserTabs.refreshPermissionStatus()
-            syncAppStatusPermissions()
-        }
-        .onDisappear {
-            camera.stop()
-            directionGesture.reset()
-            appStatus.updateGuardPalm(false)
-            isTracking = false
-        }
-    }
-
-    // MARK: - Camera Control
-
-    private func toggleCamera() {
-        if isTracking {
-            camera.stop()
-            appStatus.updateGuardPalm(false)
-            isTracking = false
-        } else {
-            isTracking = true
-            camera.start()
-        }
-
-        directionGesture.reset()
-    }
-
-    private func syncAppStatusPermissions() {
-        appStatus.updatePermissions(
-            camera: camera.hasCameraPermission,
-            inputControl: browserTabs.hasInputControlPermission,
-            browserControlEnabled: browserControlEnabled
         )
     }
 }
