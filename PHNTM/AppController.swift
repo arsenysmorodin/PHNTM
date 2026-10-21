@@ -7,8 +7,11 @@ final class AppController: ObservableObject {
 
     let camera: CameraManager
     let directionGesture: DirectionGestureEngine
+    let brightnessGesture: BrightnessGestureEngine
     let browserTabs: BrowserTabController
     let appStatus: AppStatusStore
+
+    private let displayBrightness: DisplayBrightnessController
 
     @Published private(set) var isTracking = false
     @Published var browserControlEnabled: Bool {
@@ -30,7 +33,9 @@ final class AppController: ObservableObject {
         self.appStatus = appStatus
         camera = CameraManager()
         directionGesture = DirectionGestureEngine()
+        brightnessGesture = BrightnessGestureEngine()
         browserTabs = BrowserTabController()
+        displayBrightness = DisplayBrightnessController()
         browserControlEnabled = UserDefaults.standard.bool(
             forKey: AppStorageKeys.browserControlEnabled
         )
@@ -49,6 +54,7 @@ final class AppController: ObservableObject {
 
         isTracking = true
         directionGesture.reset()
+        brightnessGesture.reset()
         camera.start()
     }
 
@@ -57,7 +63,9 @@ final class AppController: ObservableObject {
 
         camera.stop()
         directionGesture.reset()
+        brightnessGesture.reset()
         appStatus.updateGuardPalm(false)
+        appStatus.updateBrightnessGestureArmed(false)
         isTracking = false
     }
 
@@ -82,6 +90,12 @@ final class AppController: ObservableObject {
             .store(in: &cancellables)
 
         directionGesture.objectWillChange
+            .sink { [weak self] _ in
+                self?.objectWillChange.send()
+            }
+            .store(in: &cancellables)
+
+        brightnessGesture.objectWillChange
             .sink { [weak self] _ in
                 self?.objectWillChange.send()
             }
@@ -129,6 +143,30 @@ final class AppController: ObservableObject {
     private func process(hands: [[CGPoint?]]) {
         guard isTracking else { return }
 
+        let brightnessEvent = brightnessGesture.process(hands: hands)
+        let brightnessIsArmed = switch brightnessGesture.phase {
+        case .readyToClose, .closing:
+            true
+        case .idle, .arming, .waitingForRelease:
+            false
+        }
+        appStatus.updateBrightnessGestureArmed(brightnessIsArmed)
+
+        if brightnessEvent == .dimDisplay {
+            directionGesture.reset()
+            performBrightnessAction()
+            return
+        }
+
+        // While the two-palms sequence is in progress, it owns both hands.
+        // This prevents intermediate closing frames from becoming Safari
+        // commands and guarantees one action per completed closure.
+        if brightnessGesture.phase.isEngaged {
+            directionGesture.reset()
+            appStatus.updateGuardPalm(false)
+            return
+        }
+
         let isGuardPresent = hands.contains(
             where: GestureClassifier.isOpenPalm
         )
@@ -155,6 +193,24 @@ final class AppController: ObservableObject {
 
         if !didPerform, browserTabs.hasInputControlPermission {
             appStatus.reportTransientError(browserTabs.statusText)
+        }
+    }
+
+    private func performBrightnessAction() {
+        print("PHNTM: DIM DISPLAY")
+        appStatus.reportBrightnessAdjusted()
+
+        Task { [weak self] in
+            guard let self else { return }
+
+            do {
+                try await displayBrightness.dimToNearMinimum()
+            } catch is CancellationError {
+                return
+            } catch {
+                appStatus.reportTransientError(error.localizedDescription)
+                syncPermissionStatus()
+            }
         }
     }
 

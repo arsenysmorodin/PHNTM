@@ -13,6 +13,9 @@ struct ContentView: View {
     private var directionGesture: DirectionGestureEngine {
         appController.directionGesture
     }
+    private var brightnessGesture: BrightnessGestureEngine {
+        appController.brightnessGesture
+    }
     private var browserTabs: BrowserTabController { appController.browserTabs }
 
     // MARK: - Computed Properties
@@ -33,6 +36,33 @@ struct ContentView: View {
 
     private var twoHandGesture: TwoHandGesture? {
         GestureClassifier.twoHandGesture(in: camera.hands)
+    }
+
+    private var openPalmCount: Int {
+        camera.hands.filter(GestureClassifier.isOpenPalm).count
+    }
+
+    private var fistCount: Int {
+        camera.hands.filter(GestureClassifier.isFist).count
+    }
+
+    private var isGestureReady: Bool {
+        twoHandGesture != nil || brightnessGesture.phase.isEngaged
+    }
+
+    private var brightnessInstruction: String {
+        switch brightnessGesture.phase {
+        case .idle:
+            return "SHOW TWO OPEN PALMS"
+        case .arming:
+            return "HOLD BOTH PALMS"
+        case .readyToClose:
+            return "CLOSE BOTH HANDS"
+        case .closing:
+            return "HOLD BOTH FISTS"
+        case .waitingForRelease:
+            return "RELEASE TO REARM"
+        }
     }
 
     private var detectedPointsCount: Int {
@@ -65,14 +95,14 @@ struct ContentView: View {
 
                 Circle()
                     .fill(
-                        twoHandGesture != nil
+                        isGestureReady
                             ? Color.green
                             : Color.gray
                     )
                     .frame(width: 8, height: 8)
 
                 Text(
-                    twoHandGesture != nil
+                    isGestureReady
                         ? "READY"
                         : "WAITING"
                 )
@@ -188,6 +218,35 @@ struct ContentView: View {
                 )
             }
 
+            // MARK: Brightness Gesture Status
+
+            HStack(spacing: 8) {
+                Circle()
+                    .fill(
+                        brightnessGesture.phase.isEngaged
+                            ? Color.orange
+                            : Color.gray
+                    )
+                    .frame(width: 8, height: 8)
+
+                Text(brightnessInstruction)
+                    .font(.system(.caption, design: .monospaced))
+
+                Spacer()
+
+                Text(
+                    brightnessGesture.lastEvent == .dimDisplay
+                        ? "DISPLAY DIMMED"
+                        : "\(openPalmCount)/2 PALMS   \(fistCount)/2 FISTS"
+                )
+                .font(.system(.caption, design: .monospaced))
+                .foregroundStyle(
+                    brightnessGesture.lastEvent == nil
+                        ? Color.secondary
+                        : Color.orange
+                )
+            }
+
             // MARK: Browser Control
 
             Divider()
@@ -215,13 +274,13 @@ struct ContentView: View {
                 Text(
                     appController.browserControlEnabled
                         ? browserTabs.statusText
-                        : "Safari control is off"
+                        : "Safari control is off; brightness gesture stays active"
                 )
                 .foregroundStyle(Color.secondary)
 
                 Spacer()
 
-                Text("← PREVIOUS   ↑ SCROLL DOWN   ↓ SCROLL UP   NEXT →")
+                Text("☀ TWO PALMS → FISTS")
                     .foregroundStyle(Color.secondary)
             }
             .font(.system(.caption, design: .monospaced))

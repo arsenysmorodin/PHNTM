@@ -129,10 +129,10 @@ struct OnboardingView: View {
                 .shadow(color: .cyan.opacity(0.18), radius: 24, y: 8)
 
             VStack(spacing: 8) {
-                Text("Control Safari with a gesture")
+                Text("Control your Mac with gestures")
                     .font(.system(size: 28, weight: .bold))
 
-                Text("PHNTM recognizes two static hand poses and turns them into\nSafari tab and page controls. No swiping required.")
+                Text("PHNTM recognizes deliberate two-hand poses for\nSafari navigation and display brightness. No swiping required.")
                     .multilineTextAlignment(.center)
                     .foregroundStyle(.secondary)
                     .lineSpacing(3)
@@ -141,7 +141,7 @@ struct OnboardingView: View {
             HStack(spacing: 18) {
                 featureLabel("On-device", icon: "cpu")
                 featureLabel("No recordings", icon: "video.slash")
-                featureLabel("Safari only", icon: "safari")
+                featureLabel("Safari + display", icon: "safari")
             }
 
             Spacer()
@@ -154,7 +154,7 @@ struct OnboardingView: View {
             VStack(alignment: .leading, spacing: 6) {
                 Text("Two hands. One deliberate command.")
                     .font(.system(size: 24, weight: .bold))
-                Text("Keep one hand open as a safety signal. Hold a pointing gesture with the other hand.")
+                Text("For Safari, keep one palm open and point with the other. To dim the display, show two open palms, then close both hands into fists.")
                     .font(.subheadline)
                     .foregroundStyle(.secondary)
                     .fixedSize(horizontal: false, vertical: true)
@@ -187,12 +187,14 @@ struct OnboardingView: View {
                 actionRow("arrow.up", title: "Up", action: "Scroll the page down")
                 Divider()
                 actionRow("arrow.down", title: "Down", action: "Scroll the page up")
+                Divider()
+                actionRow("sun.min.fill", title: "Two fists", action: "Dim after two open palms")
             }
             .padding(.horizontal, 16)
             .background(Color(nsColor: .controlBackgroundColor))
             .clipShape(RoundedRectangle(cornerRadius: 12))
 
-            Text("Safari must be the frontmost app. PHNTM waits for a new pose before repeating a command.")
+            Text("Safari must be frontmost for navigation. The display gesture works system-wide. PHNTM waits for release before repeating a command.")
                 .font(.caption)
                 .foregroundStyle(.secondary)
                 .fixedSize(horizontal: false, vertical: true)
@@ -206,7 +208,7 @@ struct OnboardingView: View {
             VStack(alignment: .leading, spacing: 6) {
                 Text("Allow two permissions")
                     .font(.system(size: 26, weight: .bold))
-                Text("PHNTM needs the camera to see hand poses and Accessibility to send commands to Safari.")
+                Text("PHNTM needs the camera to see hand poses and Accessibility to send Safari and display commands.")
                     .foregroundStyle(.secondary)
             }
 
@@ -223,8 +225,8 @@ struct OnboardingView: View {
                 PermissionRow(
                     title: "Accessibility",
                     detail: browserTabs.hasInputControlPermission
-                        ? "Allowed. Safari controls are ready."
-                        : "Required to switch tabs and scroll in Safari.",
+                        ? "Allowed. Safari and display controls are ready."
+                        : "Required for Safari navigation and display brightness.",
                     symbol: "accessibility",
                     isGranted: browserTabs.hasInputControlPermission,
                     buttonTitle: "Open Settings",
@@ -368,13 +370,13 @@ struct OnboardingView: View {
                 .foregroundStyle(Color.accentColor)
             Text(title)
                 .fontWeight(.medium)
-                .frame(width: 52, alignment: .leading)
+                .frame(width: 70, alignment: .leading)
             Text(action)
                 .foregroundStyle(.secondary)
             Spacer()
         }
         .font(.subheadline)
-        .frame(height: 34)
+        .frame(height: 31)
     }
 }
 

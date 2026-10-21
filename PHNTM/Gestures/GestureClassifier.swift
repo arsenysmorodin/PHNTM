@@ -65,6 +65,52 @@ enum GestureClassifier {
         return extendedOtherFingers <= 1
     }
 
+    nonisolated static func isFist(_ landmarks: [CGPoint?]) -> Bool {
+        guard landmarks.count == 21,
+              let wrist = landmarks[0] else {
+            return false
+        }
+
+        let curledFingers = fingers.filter { finger in
+            guard let base = landmarks[finger.mcp],
+                  let middle = landmarks[finger.pip],
+                  let end = landmarks[finger.tip] else {
+                return false
+            }
+
+            // A fist folds each fingertip back toward the palm. Requiring both
+            // a bent PIP joint and a short wrist-to-tip distance keeps a partly
+            // open hand from being accepted as a fist.
+            let isBent = !isFingerExtended(
+                landmarks,
+                mcp: finger.mcp,
+                pip: finger.pip,
+                tip: finger.tip
+            )
+            let tipIsNearPalm = distance(wrist, end)
+                < distance(wrist, middle) * 1.18
+            let foldedLength = distance(base, end)
+            let palmReference = max(distance(wrist, base), 0.0001)
+
+            return isBent
+                && tipIsNearPalm
+                && foldedLength < palmReference * 1.15
+        }.count
+
+        // Vision occasionally loses one fingertip during closure. Three
+        // confidently curled fingers are enough, but an extended finger is not.
+        let extendedFingers = fingers.filter { finger in
+            isFingerExtended(
+                landmarks,
+                mcp: finger.mcp,
+                pip: finger.pip,
+                tip: finger.tip
+            )
+        }.count
+
+        return curledFingers >= 3 && extendedFingers == 0
+    }
+
     nonisolated static func twoHandGesture(
         in hands: [[CGPoint?]]
     ) -> TwoHandGesture? {

@@ -1,6 +1,6 @@
 # PHNTM distribution
 
-PHNTM is distributed outside the Mac App Store because it needs Accessibility access to send keyboard events to Safari. Public builds must use a Developer ID Application certificate and Apple notarization so Gatekeeper can verify them normally.
+PHNTM is distributed outside the Mac App Store because it needs Accessibility access to send Safari shortcuts and system brightness events. Public builds must use a Developer ID Application certificate and Apple notarization so Gatekeeper can verify them normally.
 
 ## Supported Macs
 
@@ -8,6 +8,7 @@ PHNTM is distributed outside the Mac App Store because it needs Accessibility ac
 - Apple silicon and Intel
 - A built-in or connected camera
 - Safari as the frontmost application while gestures are used
+- A display that responds to the standard macOS brightness controls
 
 ## Create a local test DMG
 
@@ -54,5 +55,6 @@ Set `NOTARY_PROFILE` when using a profile name other than `PHNTM-notary`. Set `D
 - Increment `MARKETING_VERSION` and `CURRENT_PROJECT_VERSION` in the Xcode target.
 - Run the public packaging script without bypassing notarization.
 - Install the resulting DMG on a different Mac and confirm Camera and Accessibility onboarding.
-- Confirm all four gestures in frontmost Safari.
+- Confirm all four directional gestures in frontmost Safari.
+- Confirm that two open palms followed by two fists dims the display once, then requires release before it can repeat.
 - Publish both the DMG and matching `.sha256` file.

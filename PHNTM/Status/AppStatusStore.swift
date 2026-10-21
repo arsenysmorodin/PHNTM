@@ -5,7 +5,9 @@ enum AppWorkStatus: Equatable {
     case permissionRequired(String)
     case ready
     case guardPalmDetected
+    case brightnessGestureArmed
     case gestureDetected(GestureDirection)
+    case brightnessAdjusted
     case error(String)
 
     var title: String {
@@ -16,8 +18,12 @@ enum AppWorkStatus: Equatable {
             return "PHNTM is ready"
         case .guardPalmDetected:
             return "Open palm detected"
+        case .brightnessGestureArmed:
+            return "Two palms detected"
         case .gestureDetected(let direction):
             return "Gesture: \(direction.displayName)"
+        case .brightnessAdjusted:
+            return "Brightness gesture recognized"
         case .error:
             return "PHNTM error"
         }
@@ -28,11 +34,15 @@ enum AppWorkStatus: Equatable {
         case .permissionRequired(let message), .error(let message):
             return message
         case .ready:
-            return "Show an open palm and a directional gesture."
+            return "Show a supported two-hand gesture."
         case .guardPalmDetected:
             return "The safety hand is ready. Show a direction with the other hand."
+        case .brightnessGestureArmed:
+            return "Close both hands into fists to dim the display."
         case .gestureDetected(let direction):
             return direction.actionDescription
+        case .brightnessAdjusted:
+            return "Display brightness reduced to one step above minimum."
         }
     }
 
@@ -44,8 +54,12 @@ enum AppWorkStatus: Equatable {
             return "checkmark.circle.fill"
         case .guardPalmDetected:
             return "hand.raised.fill"
+        case .brightnessGestureArmed:
+            return "hands.clap.fill"
         case .gestureDetected:
             return "hand.point.up.left.fill"
+        case .brightnessAdjusted:
+            return "sun.min.fill"
         case .error:
             return "exclamationmark.triangle.fill"
         }
@@ -61,8 +75,8 @@ final class AppStatusStore: ObservableObject {
 
     private var hasCameraPermission = false
     private var hasInputControlPermission = false
-    private var browserControlEnabled = false
     private var guardPalmDetected = false
+    private var brightnessGestureArmed = false
     private var persistentErrorMessage: String?
     private var transientStatus: AppWorkStatus?
     private var transientTask: Task<Void, Never>?
@@ -70,11 +84,10 @@ final class AppStatusStore: ObservableObject {
     func updatePermissions(
         camera: Bool,
         inputControl: Bool,
-        browserControlEnabled: Bool
+        browserControlEnabled _: Bool
     ) {
         hasCameraPermission = camera
         hasInputControlPermission = inputControl
-        self.browserControlEnabled = browserControlEnabled
 
         if permissionMessage != nil {
             clearTransientStatus()
@@ -88,6 +101,11 @@ final class AppStatusStore: ObservableObject {
         refreshStatus()
     }
 
+    func updateBrightnessGestureArmed(_ armed: Bool) {
+        brightnessGestureArmed = armed
+        refreshStatus()
+    }
+
     func reportGesture(_ direction: GestureDirection) {
         guard permissionMessage == nil else {
             refreshStatus()
@@ -97,6 +115,18 @@ final class AppStatusStore: ObservableObject {
         showTransient(
             .gestureDetected(direction),
             duration: .seconds(1.2)
+        )
+    }
+
+    func reportBrightnessAdjusted() {
+        guard permissionMessage == nil else {
+            refreshStatus()
+            return
+        }
+
+        showTransient(
+            .brightnessAdjusted,
+            duration: .seconds(1.4)
         )
     }
 
@@ -134,8 +164,8 @@ final class AppStatusStore: ObservableObject {
             return "Allow camera access for PHNTM."
         }
 
-        if browserControlEnabled && !hasInputControlPermission {
-            return "Allow PHNTM in Accessibility to control Safari."
+        if !hasInputControlPermission {
+            return "Allow PHNTM in Accessibility to control Safari and display brightness."
         }
 
         return nil
@@ -175,6 +205,8 @@ final class AppStatusStore: ObservableObject {
             status = .error(persistentErrorMessage)
         } else if let transientStatus {
             status = transientStatus
+        } else if brightnessGestureArmed {
+            status = .brightnessGestureArmed
         } else if guardPalmDetected {
             status = .guardPalmDetected
         } else {
