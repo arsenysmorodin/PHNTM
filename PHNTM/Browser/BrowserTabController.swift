@@ -20,7 +20,7 @@ final class BrowserTabController: ObservableObject {
         hasInputControlPermission = CGPreflightPostEventAccess()
 
         if hasInputControlPermission {
-            statusText = "Ready — focus Safari"
+            statusText = "Ready — gestures control frontmost Safari"
         } else {
             statusText = "Input control permission is required"
         }
