@@ -13,6 +13,13 @@ final class CameraManager: NSObject,
     nonisolated(unsafe) let session = AVCaptureSession()
 
     @Published private(set) var hands: [[CGPoint?]] = []
+    @Published private(set) var authorizationStatus =
+        AVCaptureDevice.authorizationStatus(for: .video)
+    @Published private(set) var errorMessage: String?
+
+    var hasCameraPermission: Bool {
+        authorizationStatus == .authorized
+    }
 
     private let sessionQueue = DispatchQueue(
         label: "com.phntm.camera.session"
@@ -37,22 +44,29 @@ final class CameraManager: NSObject,
     }
 
     func start() {
-        switch AVCaptureDevice.authorizationStatus(for: .video) {
+        authorizationStatus = AVCaptureDevice.authorizationStatus(for: .video)
+
+        switch authorizationStatus {
 
         case .authorized:
+            errorMessage = nil
             startSession()
 
         case .notDetermined:
             AVCaptureDevice.requestAccess(for: .video) { [weak self] granted in
+                self?.publishAuthorizationStatus()
+
                 if granted {
                     self?.startSession()
                 } else {
                     print("PHNTM: Camera access denied")
+                    self?.publishError("Camera access was denied.")
                 }
             }
 
         default:
             print("PHNTM: Camera permission unavailable")
+            errorMessage = "Camera permission is unavailable."
         }
     }
 
@@ -62,6 +76,7 @@ final class CameraManager: NSObject,
             if !self.isConfigured {
                 guard let camera = AVCaptureDevice.default(for: .video) else {
                     print("PHNTM: No camera found")
+                    self.publishError("No camera was found.")
                     return
                 }
 
@@ -75,6 +90,7 @@ final class CameraManager: NSObject,
 
                     guard self.session.canAddInput(input) else {
                         print("PHNTM: Cannot add camera input")
+                        self.publishError("The camera input could not be added.")
                         return
                     }
 
@@ -90,6 +106,7 @@ final class CameraManager: NSObject,
                     guard self.session.canAddOutput(self.videoOutput) else {
                         self.session.removeInput(input)
                         print("PHNTM: Cannot add video output")
+                        self.publishError("The camera output could not be added.")
                         return
                     }
 
@@ -98,6 +115,7 @@ final class CameraManager: NSObject,
 
                 } catch {
                     print("PHNTM: Camera setup failed: \(error)")
+                    self.publishError("Camera setup failed: \(error.localizedDescription)")
                     return
                 }
             }
@@ -105,6 +123,8 @@ final class CameraManager: NSObject,
             if !self.session.isRunning {
                 self.session.startRunning()
             }
+
+            self.publishError(nil)
         }
     }
 
@@ -173,10 +193,26 @@ final class CameraManager: NSObject,
             }
 
             publishHands(hands)
+            publishError(nil)
 
         } catch {
             print("PHNTM: Vision error: \(error)")
             publishHands([])
+            publishError("Hand recognition failed: \(error.localizedDescription)")
+        }
+    }
+
+    nonisolated private func publishAuthorizationStatus() {
+        let status = AVCaptureDevice.authorizationStatus(for: .video)
+
+        DispatchQueue.main.async { @MainActor [weak self] in
+            self?.authorizationStatus = status
+        }
+    }
+
+    nonisolated private func publishError(_ message: String?) {
+        DispatchQueue.main.async { @MainActor [weak self] in
+            self?.errorMessage = message
         }
     }
 

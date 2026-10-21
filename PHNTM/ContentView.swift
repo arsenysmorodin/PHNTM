@@ -5,6 +5,7 @@ struct ContentView: View {
 
     // MARK: - State
 
+    @EnvironmentObject private var appStatus: AppStatusStore
     @StateObject private var camera = CameraManager()
     @StateObject private var directionGesture = DirectionGestureEngine()
     @StateObject private var browserTabs = BrowserTabController()
@@ -238,6 +239,8 @@ struct ContentView: View {
             let isGuardPresent = hands.contains(
                 where: GestureClassifier.isOpenPalm
             )
+            appStatus.updateGuardPalm(isGuardPresent)
+
             let pointingHand = hands.first(
                 where: GestureClassifier.isPointing
             ) ?? []
@@ -247,14 +250,32 @@ struct ContentView: View {
                 isGuardPresent: isGuardPresent
             ) {
                 print("PHNTM: \(event.rawValue)")
+                appStatus.reportGesture(event)
 
                 if browserControlEnabled {
-                    _ = browserTabs.perform(event)
+                    let didPerform = browserTabs.perform(event)
+                    syncAppStatusPermissions()
+
+                    if !didPerform,
+                       browserTabs.hasInputControlPermission {
+                        appStatus.reportTransientError(browserTabs.statusText)
+                    }
                 }
             }
         }
         .onChange(of: browserControlEnabled) { _, enabled in
             browserTabs.setEnabled(enabled)
+            syncAppStatusPermissions()
+        }
+        .onReceive(camera.$authorizationStatus) { _ in
+            syncAppStatusPermissions()
+        }
+        .onReceive(camera.$errorMessage) { message in
+            if let message {
+                appStatus.reportError(message)
+            } else {
+                appStatus.clearPersistentError()
+            }
         }
         .onReceive(
             NotificationCenter.default.publisher(
@@ -262,10 +283,16 @@ struct ContentView: View {
             )
         ) { _ in
             browserTabs.refreshPermissionStatus()
+            syncAppStatusPermissions()
+        }
+        .onAppear {
+            browserTabs.refreshPermissionStatus()
+            syncAppStatusPermissions()
         }
         .onDisappear {
             camera.stop()
             directionGesture.reset()
+            appStatus.updateGuardPalm(false)
             isTracking = false
         }
     }
@@ -275,6 +302,7 @@ struct ContentView: View {
     private func toggleCamera() {
         if isTracking {
             camera.stop()
+            appStatus.updateGuardPalm(false)
             isTracking = false
         } else {
             isTracking = true
@@ -282,5 +310,13 @@ struct ContentView: View {
         }
 
         directionGesture.reset()
+    }
+
+    private func syncAppStatusPermissions() {
+        appStatus.updatePermissions(
+            camera: camera.hasCameraPermission,
+            inputControl: browserTabs.hasInputControlPermission,
+            browserControlEnabled: browserControlEnabled
+        )
     }
 }

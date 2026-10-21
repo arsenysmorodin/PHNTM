@@ -2,7 +2,7 @@ import Foundation
 import Combine
 import CoreGraphics
 
-enum GestureDirection: String {
+enum GestureDirection: String, Equatable {
     case left = "POINT LEFT"
     case right = "POINT RIGHT"
     case up = "POINT UP"
