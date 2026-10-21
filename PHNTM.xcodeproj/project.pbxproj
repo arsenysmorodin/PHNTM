@@ -7,7 +7,7 @@
 	objects = {
 
 /* Begin PBXFileReference section */
-		63F41E0A3087C4CE00D89D35 /* PHNTM.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; name = PHNTM.app; path = /Users/arsenysmorodin/PHNTM/build/Debug/PHNTM.app; sourceTree = "<absolute>"; };
+		63F41E0A3087C4CE00D89D35 /* PHNTM.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = PHNTM.app; sourceTree = BUILT_PRODUCTS_DIR; };
 /* End PBXFileReference section */
 
 /* Begin PBXFileSystemSynchronizedRootGroup section */
@@ -31,6 +31,7 @@
 			isa = PBXGroup;
 			children = (
 				63F41E0C3087C4CE00D89D35 /* PHNTM */,
+				63F41E0A3087C4CE00D89D35 /* PHNTM.app */,
 			);
 			sourceTree = "<group>";
 		};
@@ -232,7 +233,7 @@
 				CODE_SIGN_STYLE = Automatic;
 				COMBINE_HIDPI_IMAGES = YES;
 				CURRENT_PROJECT_VERSION = 1;
-				ENABLE_APP_SANDBOX = YES;
+				ENABLE_APP_SANDBOX = NO;
 				ENABLE_INCOMING_NETWORK_CONNECTIONS = NO;
 				ENABLE_OUTGOING_NETWORK_CONNECTIONS = NO;
 				ENABLE_PREVIEWS = YES;
@@ -273,7 +274,7 @@
 				CODE_SIGN_STYLE = Automatic;
 				COMBINE_HIDPI_IMAGES = YES;
 				CURRENT_PROJECT_VERSION = 1;
-				ENABLE_APP_SANDBOX = YES;
+				ENABLE_APP_SANDBOX = NO;
 				ENABLE_INCOMING_NETWORK_CONNECTIONS = NO;
 				ENABLE_OUTGOING_NETWORK_CONNECTIONS = NO;
 				ENABLE_PREVIEWS = YES;

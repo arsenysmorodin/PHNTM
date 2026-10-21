@@ -4,14 +4,15 @@ import Combine
 import AVFoundation
 import Vision
 
+@MainActor
 final class CameraManager: NSObject,
                            ObservableObject,
                            AVCaptureVideoDataOutputSampleBufferDelegate,
                            @unchecked Sendable {
 
-    let session = AVCaptureSession()
+    nonisolated(unsafe) let session = AVCaptureSession()
 
-    @Published private(set) var landmarks: [CGPoint?] = []
+    @Published private(set) var hands: [[CGPoint?]] = []
 
     private let sessionQueue = DispatchQueue(
         label: "com.phntm.camera.session"
@@ -21,18 +22,18 @@ final class CameraManager: NSObject,
         label: "com.phntm.camera.frames"
     )
 
-    private let videoOutput = AVCaptureVideoDataOutput()
-    private let handRequest = VNDetectHumanHandPoseRequest()
+    nonisolated(unsafe) private let videoOutput = AVCaptureVideoDataOutput()
+    nonisolated(unsafe) private let handRequest = VNDetectHumanHandPoseRequest()
 
     // Доступ только из sessionQueue
-    private var isConfigured = false
+    nonisolated(unsafe) private var isConfigured = false
 
     // Доступ только из frameQueue
-    private var lastAnalysisTime: TimeInterval = 0
+    nonisolated(unsafe) private var lastAnalysisTime: TimeInterval = 0
 
     override init() {
         super.init()
-        handRequest.maximumHandCount = 1
+        handRequest.maximumHandCount = 2
     }
 
     func start() {
@@ -55,7 +56,7 @@ final class CameraManager: NSObject,
         }
     }
 
-    private func startSession() {
+    nonisolated private func startSession() {
         sessionQueue.async {
 
             if !self.isConfigured {
@@ -107,21 +108,21 @@ final class CameraManager: NSObject,
         }
     }
 
-    func stop() {
+    nonisolated func stop() {
         sessionQueue.async {
             if self.session.isRunning {
                 self.session.stopRunning()
             }
 
             DispatchQueue.main.async {
-                self.landmarks = []
+                self.hands = []
             }
         }
     }
 
     // MARK: - Frame Processing
 
-    func captureOutput(
+    nonisolated func captureOutput(
         _ output: AVCaptureOutput,
         didOutput sampleBuffer: CMSampleBuffer,
         from connection: AVCaptureConnection
@@ -144,11 +145,6 @@ final class CameraManager: NSObject,
         do {
             try handler.perform([handRequest])
 
-            guard let hand = handRequest.results?.first else {
-                publishLandmarks([])
-                return
-            }
-
             let joints: [VNHumanHandPoseObservation.JointName] = [
                 .wrist,
                 .thumbCMC, .thumbMP, .thumbIP, .thumbTip,
@@ -158,26 +154,35 @@ final class CameraManager: NSObject,
                 .littleMCP, .littlePIP, .littleDIP, .littleTip
             ]
 
-            let points: [CGPoint?] = joints.map { joint in
-                guard let point = try? hand.recognizedPoint(joint),
-                      point.confidence > 0.3 else {
-                    return nil
-                }
-
-                return point.location
+            guard let observations = handRequest.results else {
+                publishHands([])
+                return
             }
 
-            publishLandmarks(points)
+            let hands: [[CGPoint?]] = observations.map { hand in
+                joints.map { joint -> CGPoint? in
+                    guard let point = try? hand.recognizedPoint(
+                        forKey: joint.rawValue
+                    ),
+                          point.confidence > 0.3 else {
+                        return nil
+                    }
+
+                    return point.location
+                }
+            }
+
+            publishHands(hands)
 
         } catch {
             print("PHNTM: Vision error: \(error)")
-            publishLandmarks([])
+            publishHands([])
         }
     }
 
-    private func publishLandmarks(_ points: [CGPoint?]) {
-        DispatchQueue.main.async {
-            self.landmarks = points
+    nonisolated private func publishHands(_ hands: [[CGPoint?]]) {
+        DispatchQueue.main.async { @MainActor [weak self] in
+            self?.hands = hands
         }
     }
 }

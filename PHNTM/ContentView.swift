@@ -1,19 +1,46 @@
 import SwiftUI
+import AppKit
 
 struct ContentView: View {
 
+    // MARK: - State
+
     @StateObject private var camera = CameraManager()
-    @StateObject private var activation = ActivationEngine()
+    @StateObject private var directionGesture = DirectionGestureEngine()
+    @StateObject private var browserTabs = BrowserTabController()
 
     @State private var isTracking = false
+    @AppStorage("browserControlEnabled")
+    private var browserControlEnabled = false
 
-    private var handDetected: Bool {
-        camera.landmarks.contains { $0 != nil }
+    // MARK: - Computed Properties
+
+    private var detectedHandsCount: Int {
+        camera.hands.filter { hand in
+            hand.contains { $0 != nil }
+        }.count
     }
 
-    private var isOpenPalm: Bool {
-        GestureClassifier.isOpenPalm(camera.landmarks)
+    private var hasOpenPalmHand: Bool {
+        camera.hands.contains(where: GestureClassifier.isOpenPalm)
     }
+
+    private var hasGestureHand: Bool {
+        camera.hands.contains(where: GestureClassifier.isPointing)
+    }
+
+    private var twoHandGesture: TwoHandGesture? {
+        GestureClassifier.twoHandGesture(in: camera.hands)
+    }
+
+    private var detectedPointsCount: Int {
+        camera.hands
+            .flatMap { $0 }
+            .compactMap { $0 }
+            .count
+    }
+
+    // MARK: - Body
 
     var body: some View {
         VStack(spacing: 20) {
@@ -27,19 +54,27 @@ struct ContentView: View {
                 Spacer()
 
                 Circle()
-                    .fill(activation.isActive ? .green : .gray)
+                    .fill(
+                        twoHandGesture != nil
+                            ? Color.green
+                            : Color.gray
+                    )
                     .frame(width: 8, height: 8)
 
-                Text(activation.isActive ? "ACTIVE" : "STANDBY")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
+                Text(
+                    twoHandGesture != nil
+                        ? "READY"
+                        : "WAITING"
+                )
+                .font(.caption)
+                .foregroundStyle(Color.secondary)
             }
 
-            // MARK: Camera
+            // MARK: Camera Preview
 
             CameraPreview(
                 session: camera.session,
-                landmarks: camera.landmarks
+                hands: camera.hands
             )
             .frame(height: 320)
             .clipShape(
@@ -50,74 +85,202 @@ struct ContentView: View {
             // MARK: Vision Status
 
             HStack {
-                Text(handDetected ? "HAND DETECTED" : "NO HAND")
-                    .foregroundStyle(
-                        handDetected ? .green : .secondary
+                Text(
+                    detectedHandsCount == 2
+                        ? "TWO HANDS DETECTED"
+                        : "SHOW TWO HANDS"
+                )
+                .foregroundStyle(
+                    detectedHandsCount == 2
+                        ? Color.green
+                        : Color.secondary
+                )
+
+                Spacer()
+
+                Text("\(detectedPointsCount) / 42 POINTS")
+                    .foregroundStyle(Color.secondary)
+            }
+            .font(.system(.caption, design: .monospaced))
+
+            // MARK: Open Palm Status
+
+            HStack(spacing: 8) {
+                Circle()
+                    .fill(
+                        hasOpenPalmHand
+                            ? Color.green
+                            : Color.gray
                     )
+                    .frame(width: 8, height: 8)
+
+                Text(
+                    hasOpenPalmHand
+                        ? "OPEN PALM READY"
+                        : "SHOW OPEN PALM"
+                )
+                .font(.caption)
+
+                Spacer()
+
+                Text("KEEP SECOND HAND OPEN")
+                    .font(
+                        .system(
+                            .caption,
+                            design: .monospaced
+                        )
+                    )
+                    .foregroundStyle(Color.secondary)
+            }
+
+            // MARK: Directional Gesture Status
+
+            HStack(spacing: 8) {
+                Circle()
+                    .fill(
+                        hasGestureHand
+                            ? Color.cyan
+                            : Color.gray
+                    )
+                    .frame(width: 8, height: 8)
+
+                Text(
+                    hasGestureHand
+                        ? "GESTURE HAND READY"
+                        : "SHOW POINTING HAND"
+                )
+                .font(
+                    .system(
+                        .caption,
+                        design: .monospaced
+                    )
+                )
 
                 Spacer()
 
                 Text(
-                    "\(camera.landmarks.compactMap { $0 }.count) / 21 POINTS"
+                    directionGesture.lastEvent?.rawValue ?? "NO GESTURE"
                 )
-                .foregroundStyle(.secondary)
+                .font(
+                    .system(
+                        .caption,
+                        design: .monospaced
+                    )
+                )
+                .foregroundStyle(
+                    directionGesture.lastEvent == nil
+                        ? Color.secondary
+                        : Color.cyan
+                )
+                .animation(
+                    .easeOut(duration: 0.15),
+                    value: directionGesture.lastEvent
+                )
             }
-            .font(.system(.caption, design: .monospaced))
 
-            // MARK: Gesture Status
+            // MARK: Browser Control
 
-            HStack(spacing: 8) {
-                Circle()
-                    .fill(isOpenPalm ? .green : .gray)
-                    .frame(width: 8, height: 8)
+            Divider()
 
-                Text(isOpenPalm ? "OPEN PALM" : "NO GESTURE")
-                    .font(.caption)
+            HStack(spacing: 12) {
+                Toggle(
+                    "Control Safari",
+                    isOn: $browserControlEnabled
+                )
 
                 Spacer()
 
-                Text(activation.instruction)
-                    .font(.system(.caption, design: .monospaced))
-                    .foregroundStyle(.secondary)
+                if browserTabs.hasInputControlPermission {
+                    Label("ACCESS GRANTED", systemImage: "checkmark.shield")
+                        .foregroundStyle(Color.green)
+                } else {
+                    Button("Grant Accessibility") {
+                        browserTabs.requestAccessibilityPermission()
+                    }
+                }
             }
+            .font(.caption)
 
-            // MARK: Activation Progress
+            HStack {
+                Text(
+                    browserControlEnabled
+                        ? browserTabs.statusText
+                        : "Safari control is off"
+                )
+                .foregroundStyle(Color.secondary)
 
-            ProgressView(value: activation.progress)
-                .tint(activation.isActive ? .green : .blue)
+                Spacer()
+
+                Text("← PREVIOUS   ↑ SCROLL DOWN   ↓ SCROLL UP   NEXT →")
+                    .foregroundStyle(Color.secondary)
+            }
+            .font(.system(.caption, design: .monospaced))
 
             // MARK: Camera Control
 
-            Button(isTracking ? "Stop Camera" : "Start Camera") {
-                if isTracking {
-                    camera.stop()
-                    activation.reset()
-                } else {
-                    activation.reset()
-                    camera.start()
-                }
-
-                isTracking.toggle()
+            Button(
+                isTracking
+                    ? "Stop Camera"
+                    : "Start Camera"
+            ) {
+                toggleCamera()
             }
             .buttonStyle(.borderedProminent)
         }
         .padding(24)
         .frame(width: 560)
 
-        // Получаем новые точки от CameraManager.
-        // Классифицируем жест один раз на кадр.
-        .onReceive(camera.$landmarks) { points in
+        // MARK: Frame Processing
+
+        .onReceive(camera.$hands) { hands in
             guard isTracking else { return }
 
-            let openPalm = GestureClassifier.isOpenPalm(points)
+            let isGuardPresent = hands.contains(
+                where: GestureClassifier.isOpenPalm
+            )
+            let pointingHand = hands.first(
+                where: GestureClassifier.isPointing
+            ) ?? []
 
-            activation.process(isOpenPalm: openPalm)
+            if let event = directionGesture.process(
+                landmarks: pointingHand,
+                isGuardPresent: isGuardPresent
+            ) {
+                print("PHNTM: \(event.rawValue)")
+
+                if browserControlEnabled {
+                    _ = browserTabs.perform(event)
+                }
+            }
         }
-
+        .onChange(of: browserControlEnabled) { _, enabled in
+            browserTabs.setEnabled(enabled)
+        }
+        .onReceive(
+            NotificationCenter.default.publisher(
+                for: NSApplication.didBecomeActiveNotification
+            )
+        ) { _ in
+            browserTabs.refreshPermissionStatus()
+        }
         .onDisappear {
             camera.stop()
-            activation.reset()
+            directionGesture.reset()
             isTracking = false
         }
+    }
+
+    // MARK: - Camera Control
+
+    private func toggleCamera() {
+        if isTracking {
+            camera.stop()
+            isTracking = false
+        } else {
+            isTracking = true
+            camera.start()
+        }
+
+        directionGesture.reset()
     }
 }

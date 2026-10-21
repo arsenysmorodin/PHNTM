@@ -6,7 +6,7 @@ import AppKit
 struct CameraPreview: NSViewRepresentable {
 
     let session: AVCaptureSession
-    let landmarks: [CGPoint?]
+    let hands: [[CGPoint?]]
 
     func makeNSView(context: Context) -> CameraPreviewView {
         CameraPreviewView(session: session)
@@ -16,7 +16,7 @@ struct CameraPreview: NSViewRepresentable {
         _ nsView: CameraPreviewView,
         context: Context
     ) {
-        nsView.updateLandmarks(landmarks)
+        nsView.updateHands(hands)
     }
 }
 
@@ -26,7 +26,7 @@ final class CameraPreviewView: NSView {
     private let linesLayer = CAShapeLayer()
     private let pointsLayer = CAShapeLayer()
 
-    private var landmarks: [CGPoint?] = []
+    private var hands: [[CGPoint?]] = []
 
     // Индексы суставов в массиве landmarks
     private let fingers: [[Int]] = [
@@ -71,8 +71,8 @@ final class CameraPreviewView: NSView {
         drawSkeleton()
     }
 
-    func updateLandmarks(_ newLandmarks: [CGPoint?]) {
-        landmarks = newLandmarks
+    func updateHands(_ newHands: [[CGPoint?]]) {
+        hands = newHands
         drawSkeleton()
     }
 
@@ -80,7 +80,7 @@ final class CameraPreviewView: NSView {
         let linePath = CGMutablePath()
         let pointPath = CGMutablePath()
 
-        guard landmarks.count == 21 else {
+        guard !hands.isEmpty else {
             linesLayer.path = nil
             pointsLayer.path = nil
             return
@@ -96,36 +96,38 @@ final class CameraPreviewView: NSView {
         }
 
 
-        // Соединяем суставы каждого пальца.
-        for finger in fingers {
-            for i in 1..<finger.count {
-                let a = finger[i - 1]
-                let b = finger[i]
+        for landmarks in hands where landmarks.count == 21 {
+            // Соединяем суставы каждого пальца.
+            for finger in fingers {
+                for i in 1..<finger.count {
+                    let a = finger[i - 1]
+                    let b = finger[i]
 
-                guard let start = landmarks[a],
-                      let end = landmarks[b] else {
-                    continue
+                    guard let start = landmarks[a],
+                          let end = landmarks[b] else {
+                        continue
+                    }
+
+                    linePath.move(to: convert(start))
+                    linePath.addLine(to: convert(end))
                 }
-
-                linePath.move(to: convert(start))
-                linePath.addLine(to: convert(end))
             }
-        }
 
-        // Отрисовываем распознанные суставы.
-        for point in landmarks {
-            guard let point else { continue }
+            // Отрисовываем распознанные суставы.
+            for point in landmarks {
+                guard let point else { continue }
 
-            let position = convert(point)
+                let position = convert(point)
 
-            pointPath.addEllipse(
-                in: CGRect(
-                    x: position.x - 3.5,
-                    y: position.y - 3.5,
-                    width: 7,
-                    height: 7
+                pointPath.addEllipse(
+                    in: CGRect(
+                        x: position.x - 3.5,
+                        y: position.y - 3.5,
+                        width: 7,
+                        height: 7
+                    )
                 )
-            )
+            }
         }
 
         linesLayer.path = linePath
